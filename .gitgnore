@@ -1,0 +1,19 @@
+# Environments
+.env
+venv/
+env/
+.venv/
+
+# Byte-compiled
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
