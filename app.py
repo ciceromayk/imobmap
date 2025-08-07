@@ -1,11 +1,11 @@
-# src/app.py
+# app.py
 import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
 import requests
 
-from src.config import GOOGLE_MAPS_API_KEY  # Importar a chave da API do arquivo config.py
+from config import GOOGLE_MAPS_API_KEY  # Importar a chave da API do arquivo config.py
 
 # Configuração inicial do aplicativo
 st.set_page_config(
