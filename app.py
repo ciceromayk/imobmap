@@ -84,10 +84,16 @@ with st.sidebar.expander("🔷 4. Vendas & Marketing"):
     )
 
 with st.sidebar.expander("🔶 5. Parâmetros Financeiros"):
-    taxa_juros = st.slider(
+    taxa_desconto = st.slider(
         "Taxa de desconto anual (%)",
-        min_value=0.0, max_value=20.0, value=10.0, step=0.1
+        min_value=0.0, max_value=20.0, value=10.0, step=0.1,
+        help="Taxa mínima de atratividade do investimento.  Quanto maior, mais 'exigente' é o projeto."
     ) / 100.0
+    periodos = st.number_input(
+        "Períodos (anos)",
+        min_value=1, max_value=10, value=1, step=1,
+        help="Número de anos para projeção do fluxo de caixa."
+    )
 
 #
 # --- PARSE DAS TIPOLOGIAS ---
@@ -117,8 +123,8 @@ investimento_construcao = (
     custo_prev_construcao + custos_indiretos + custos_licenciamento
 )
 
-# Investimento total
-investimento_total = (
+# Investimento total (custo total)
+custo_total = (
     preco_terreno + custos_regularizacao
     + investimento_construcao + custos_marketing
 )
@@ -127,17 +133,20 @@ investimento_total = (
 receita_total = area_privativa * preco_m2_privativa
 valor_comissao = receita_total * comissao_vendas
 
-# Lucro bruto
-lucro_bruto = receita_total - investimento_total - valor_comissao
+# Lucro bruto (ou prejuízo)
+lucro_bruto = receita_total - custo_total - valor_comissao
+
+# Retorno sobre o investimento (%)
+retorno_investimento = (lucro_bruto / custo_total) * 100 if custo_total else 0
 
 # Fluxo de caixa simples: T0 = -investimento; T1 = receita líquida
-fluxos = [-investimento_total, receita_total - valor_comissao]
-vpl = nf.npv(taxa_juros, fluxos)
+fluxos = [-custo_total] + [receita_total - valor_comissao] * periodos
+
+# VPL (Valor Presente Líquido)
+vpl = nf.npv(taxa_desconto, fluxos)
+
+# TIR (Taxa Interna de Retorno)
 tir = nf.irr(fluxos)
-payback = (
-    investimento_total / (receita_total - valor_comissao)
-    if receita_total - valor_comissao > 0 else np.nan
-)
 
 # Indicador area privativa/area construida
 indicador_area = area_privativa / area_construida
@@ -149,11 +158,34 @@ tab1, tab2, tab3 = st.tabs(["📊 Visão Geral", "💰 Financeiro", "🔄 Sensib
 
 with tab1:
     st.header("Visão Geral do Projeto")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Investimento Total", formatar_moeda(investimento_total))
-    col2.metric("Receita Total",      formatar_moeda(receita_total))
-    col3.metric("Lucro Bruto",        formatar_moeda(lucro_bruto))
-    col4.metric("Payback (anos)",     f"{payback:.2f}" if not np.isnan(payback) else "–")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div style='padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f2f6;'>
+            <h4 style='text-align: center;'>Custo Total</h4>
+            <h2 style='text-align: center;'>{}</h2>
+        </div>
+        """.format(formatar_moeda(custo_total)), unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style='padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f2f6;'>
+            <h4 style='text-align: center;'>Receita Total</h4>
+            <h2 style='text-align: center;'>{}</h2>
+        </div>
+        """.format(formatar_moeda(receita_total)), unsafe_allow_html=True)
+
+    with col3:
+        texto_lucro = "Lucro Bruto" if lucro_bruto > 0 else "Prejuízo"
+        cor_texto = "green" if lucro_bruto > 0 else "red"
+        st.markdown("""
+        <div style='padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f0f2f6;'>
+            <h4 style='text-align: center;'>{}</h4>
+            <h2 style='text-align: center; color: {};'>{}</h2>
+        </div>
+        """.format(texto_lucro, cor_texto, formatar_moeda(lucro_bruto)), unsafe_allow_html=True)
 
     # Indicador de Area Privativa / Area Construida
     if indicador_area <= 0.6:
@@ -185,14 +217,15 @@ with tab2:
     st.header("Análise Financeira")
     st.metric("VPL (R$)", formatar_moeda(vpl))
     st.metric("TIR (%)", f"{tir*100:.2f}%")
+    st.metric("Retorno sobre o Investimento (%)", f"{retorno_investimento:.2f}%")
     st.markdown("---")
     st.subheader("Fluxo de Caixa Projetado")
 
-    years = ["T0", "T1"]
-    values = [fluxos[0], fluxos[1]]
+    years = ["T0"] + [f"T{i+1}" for i in range(periodos)]
+    values = fluxos
     fig = go.Figure([
         go.Bar(x=years, y=values, text=[formatar_moeda(v) for v in values], textposition="auto",
-               marker_color=["crimson", "seagreen"])
+               marker_color=["crimson"] + ["seagreen"]*periodos)
     ])
     fig.update_layout(yaxis_title="R$", showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
@@ -210,14 +243,14 @@ with tab3:
     custo_adj = custo_construcao_m2 * (1 + var_cost/100)
     receita_adj = area_privativa * preco_adj
     custo_const_adj = area_construida * custo_adj + custos_indiretos + custos_licenciamento
-    invest_adj = preco_terreno + custos_regularizacao + custo_const_adj + custos_marketing
-    lucro_adj = receita_adj - invest_adj - (receita_adj * comissao_vendas)
+    custo_total_adj = preco_terreno + custos_regularizacao + custo_const_adj + custos_marketing
+    lucro_adj = receita_adj - custo_total_adj - (receita_adj * comissao_vendas)
 
     df_sens = pd.DataFrame({
         "Cenário": ["Base", f"Preço {'+' if var_price>0 else ''}{var_price}%", f"Custo {'+' if var_cost>0 else ''}{var_cost}%"],
         "Receita (R$)": [receita_total, receita_adj, receita_total],
-        "Investimento (R$)": [investimento_total, investimento_total, invest_adj],
-        "Lucro Bruto (R$)": [lucro_bruto, receita_adj - investimento_total - receita_adj*comissao_vendas, lucro_adj],
+        "Investimento (R$)": [custo_total, custo_total, custo_total_adj],
+        "Lucro Bruto (R$)": [lucro_bruto, receita_adj - custo_total - receita_adj*comissao_vendas, lucro_adj],
     })
     st.table(df_sens.style.format({
         "Receita (R$)": formatar_moeda,
