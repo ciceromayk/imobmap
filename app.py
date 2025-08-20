@@ -1,112 +1,136 @@
-# app.py
 import streamlit as st
 import pandas as pd
-from streamlit_folium import folium_static
-import requests
+import numpy as np
 
-from config import GOOGLE_MAPS_API_KEY  # Importar a chave da API do arquivo config.py
+st.set_page_config(page_title="Viabilidade Residencial", layout="wide")
+st.title("🚀 Viabilidade de Empreendimentos Residenciais")
 
-# Configuração inicial do aplicativo
-st.set_page_config(
-    page_title="Mapeamento de Preços em Fortaleza",
-    page_icon=":cityscape:",
-    layout="wide"
+# === 1. Entrada de Dados Gerais e Financeiros ===
+with st.sidebar:
+    st.header("Parâmetros do Projeto e Finanças")
+    
+    st.subheader("Dimensões e Estrutura")
+    area_construida = st.number_input(
+        "Área construída total (m²)", min_value=0.0, value=5000.0, step=100.0
+    )
+    area_privativa = st.number_input(
+        "Área privativa total (m²)", min_value=0.0, value=3000.0, step=100.0
+    )
+    num_unidades = st.number_input(
+        "Número de unidades residenciais", min_value=1, value=50, step=1
+    )
+    
+    st.subheader("Garagem e Elevadores")
+    garagem_tipo = st.selectbox(
+        "Tipo de garagem",
+        ("Subsolo", "Sobressolo", "Prédio Garagem")
+    )
+    num_vagas = st.number_input(
+        "Total de vagas de garagem", min_value=0, value=75, step=1
+    )
+    num_elevadores = st.number_input(
+        "Número de elevadores", min_value=0, value=2, step=1
+    )
+    
+    st.subheader("Investimentos e Custos")
+    custo_terreno = st.number_input(
+        "Custo do terreno (R$)", min_value=0.0, value=1_000_000.0, step=10000.0, format="%.2f"
+    )
+    custo_construcao_m2 = st.number_input(
+        "Custo de construção (R$/m²)", min_value=0.0, value=2000.0, step=100.0, format="%.2f"
+    )
+    preco_venda_medio = st.number_input(
+        "Preço médio de venda por unidade (R$)", min_value=0.0, value=350_000.0, step=5000.0, format="%.2f"
+    )
+    
+    st.subheader("Parâmetros do Projeto")
+    tipologia_garagem = st.radio(
+        "Configuração da garagem",
+        ("1 nível", "2 níveis", "Multi-nível")
+    )
+
+st.markdown("---")
+
+# === 2. Descrição das Unidades ===
+st.subheader("Descrição das Unidades")
+st.markdown("Informe, por tipologia, quantas unidades e as áreas médias correspondentes.")
+default_tipos = {
+    "Tipologia": ["1Q + Sala", "2Q + Sala", "3Q + Sala"],
+    "Qtd Unidades": [20, 20, 10],
+    "Área Média (m²)": [60, 80, 100],
+}
+df_tipos = st.experimental_data_editor(
+    pd.DataFrame(default_tipos),
+    num_rows="dynamic",
+    use_container_width=True
 )
 
-# Função para carregar dados (substitua com sua fonte de dados)
-@st.cache_data
-def carregar_dados():
-    # Exemplo de carregamento de dados
-    try:
-        # Substitua por sua fonte de dados real
-        dados = pd.DataFrame({
-            'regiao': ['Centro', 'Aldeota', 'Meireles', 'Benfica'],
-            'latitude': [-3.7272, -3.7432, -3.7335, -3.7436],
-            'longitude': [-38.5275, -38.5041, -38.4989, -38.5434],
-            'preco_medio': [500.00, 750.00, 1000.00, 350.00]
-        })
-        return dados
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return pd.DataFrame()
+# === 3. Cálculos dos Indicadores e Viabilidade ===
+st.subheader("Indicadores de Viabilidade")
 
-# Função para obter detalhes do Street View
-def obter_street_view(latitude, longitude):
-    base_url = "https://maps.googleapis.com/maps/api/streetview"
-    params = {
-        'size': '600x300',
-        'location': f'{latitude},{longitude}',
-        'key': GOOGLE_MAPS_API_KEY
-    }
+# Indicadores estruturais
+area_media_unidade = area_construida / num_unidades
+vagas_por_unidade = num_vagas / num_unidades if num_unidades else np.nan
+elevadores_por_unidade = num_elevadores / num_unidades if num_unidades else np.nan
 
-    try:
-        response = requests.get(base_url, params=params)
-        if response.status_code == 200:
-            return response.url
-        else:
-            return None
-    except Exception as e:
-        st.error(f"Erro ao obter Street View: {e}")
-        return None
+# Cálculo da composição de áreas por tipologia
+df_tipos["% Área Total"] = (df_tipos["Qtd Unidades"] * df_tipos["Área Média (m²)"]) / area_construida * 100
 
-# Função principal do aplicativo
-def main():
-    st.title("🏙️ Mapeamento de Preços em Fortaleza")
+# Indicadores financeiros
+custo_construcao_total = area_construida * custo_construcao_m2
+investimento_total = custo_terreno + custo_construcao_total
+receita_estimadas = num_unidades * preco_venda_medio
+lucro_estimado = receita_estimadas - investimento_total
 
-    # Carregar dados
-    dados = carregar_dados()
+# Outras métricas
+custo_por_unidade = investimento_total / num_unidades
 
-    # Sidebar para filtros
-    st.sidebar.header("Filtros")
+# Exibição dos indicadores
+col1, col2, col3 = st.columns(3)
+col1.metric("Área média/unidade (m²)", f"{area_media_unidade:.1f}")
+col2.metric("Vagas por unidade", f"{vagas_por_unidade:.2f}")
+col3.metric("Elevadores/unidade", f"{elevadores_por_unidade:.3f}")
 
-    # Seleção de região
-    regioes_selecionadas = st.sidebar.multiselect(
-        "Selecione as Regiões:",
-        options=dados['regiao'].unique(),
-        default=dados['regiao'].unique()
-    )
+st.markdown("**Distribuição de área por tipologia:**")
+st.dataframe(
+    df_tipos.style.format({
+        "Área Média (m²)": "{:.1f}",
+        "% Área Total": "{:.1f}%"
+    }),
+    use_container_width=True
+)
 
-    # Filtrar dados
-    dados_filtrados = dados[dados['regiao'].isin(regioes_selecionadas)]
+st.markdown("---")
+st.subheader("Análise Financeira")
+st.write(f"**Custo total de construção:** R$ {custo_construcao_total:,.2f}")
+st.write(f"**Investimento total (terreno + construção):** R$ {investimento_total:,.2f}")
+st.write(f"**Receita estimada (venda de unidades):** R$ {receita_estimadas:,.2f}")
+st.write(f"**Lucro estimado:** R$ {lucro_estimado:,.2f}")
+st.write(f"**Custo por unidade:** R$ {custo_por_unidade:,.2f}")
 
-    # Criar mapa
-    map_fortaleza = folium.Map(
-        location=[-3.7272, -38.5275],
-        zoom_start=12
-    )
+# === 4. Alertas e Recomendações ===
+st.subheader("Alertas e Recomendações")
 
-    # Adicionar marcadores
-    for idx, row in dados_filtrados.iterrows():
-        folium.Marker(
-            location=[row['latitude'], row['longitude']],
-            popup=f"Região: {row['regiao']}\nPreço Médio: R${row['preco_medio']:.2f}",
-            tooltip=row['regiao']
-        ).add_to(map_fortaleza)
+# Alertas estruturais
+if vagas_por_unidade < 1:
+    st.warning("Média de vagas inferior a 1 por unidade. Verifique se o atendimento mínimo está sendo cumprido.")
 
-    # Exibir mapa
-    folium_static(map_fortaleza)
+if elevadores_por_unidade < 0.05:
+    st.warning("Número baixo de elevadores em relação às unidades. Considere aumentar para melhorar a circulação.")
 
-    # Visualização de dados
-    st.subheader("Detalhes dos Preços")
-    st.dataframe(dados_filtrados)
+if garagem_tipo == "Subsolo" and area_construida > 10000:
+    st.info("Em empreendimentos com grande área construída, garagens em subsolo podem elevar os custos de escavação.")
 
-    # Street View para locais selecionados
-    st.subheader("Street View das Regiões")
+# Alertas financeiros
+if lucro_estimado < 0:
+    st.error("O projeto apresenta prejuízo estimado. Avalie a redução de custos ou ajuste os valores de venda.")
+elif lucro_estimado / investimento_total < 0.1:
+    st.warning("A margem de lucro está baixa. Considere revisar os custos e o preço de venda.")
 
-    # Colunas para exibição de Street View
-    cols = st.columns(len(dados_filtrados))
+# Recomendações adicionais
+st.info("Recomenda-se análise detalhada dos custos de construção e uma pesquisa de mercado atualizada para confirmar os valores de venda.")
 
-    for i, (_, row) in enumerate(dados_filtrados.iterrows()):
-        with cols[i]:
-            street_view_url = obter_street_view(row['latitude'], row['longitude'])
-            if street_view_url:
-                st.image(street_view_url, caption=row['regiao'])
+# === 5. Possível Exportação do Relatório (Futuro) ===
+st.markdown("---")
+st.caption("Feito com ❤️ por sua equipe de engenharia de software.")
 
-            st.metric(
-                label=f"Preço Médio - {row['regiao']}",
-                value=f"R$ {row['preco_medio']:.2f}"
-            )
-
-# Executar o aplicativo
-if __name__ == "__main__":
-    main()
