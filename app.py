@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 st.set_page_config(page_title="Viabilidade Residencial", layout="wide")
 st.title("🚀 Viabilidade de Empreendimentos Residenciais")
@@ -51,28 +52,36 @@ with st.sidebar:
 
 st.markdown("---")
 
-# === 2. Descrição das Unidades ===
+# === 2. Descrição das Unidades (AgGrid) ===
 st.subheader("Descrição das Unidades")
-st.markdown("Informe, por tipologia, quantas unidades e as áreas médias correspondentes.")
-default_tipos = {
+st.markdown("Edite as tipologias no grid abaixo.")
+
+# dataframe padrão
+default_tipos = pd.DataFrame({
     "Tipologia": ["1Q + Sala", "2Q + Sala", "3Q + Sala"],
     "Qtd Unidades": [20, 20, 10],
     "Área Média (m²)": [60, 80, 100],
-}
+})
 
-try:
-    df_tipos = st.experimental_data_editor(
-        pd.DataFrame(default_tipos),
-        num_rows="dynamic",
-        use_container_width=True
-    )
-except AttributeError:
-    st.warning(
-        "A funcionalidade de edição direta de dados não está disponível "
-        "na versão do Streamlit que você está usando."
-    )
-    df_tipos = pd.DataFrame(default_tipos)
-    st.dataframe(df_tipos, use_container_width=True)
+# configurações da grade
+gb = GridOptionsBuilder.from_dataframe(default_tipos)
+gb.configure_default_column(editable=True)  # todas colunas editáveis
+gb.configure_column("Tipologia", editable=True)
+gb.configure_column("Qtd Unidades", type=["numericColumn"], editable=True)
+gb.configure_column("Área Média (m²)", type=["numericColumn"], editable=True)
+grid_opts = gb.build()
+
+# exibe e captura o resultado
+grid_response = AgGrid(
+    default_tipos,
+    gridOptions=grid_opts,
+    data_return_mode=DataReturnMode.AS_INPUT,  # retorna o df após edição
+    update_mode=GridUpdateMode.VALUE_CHANGED,
+    fit_columns_on_grid_load=True,
+    enable_enterprise_modules=False,
+)
+
+df_tipos = grid_response["data"]
 
 # === 3. Cálculos dos Indicadores e Viabilidade ===
 st.subheader("Indicadores de Viabilidade")
