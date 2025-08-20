@@ -1,11 +1,3 @@
-geopy
-plotly
-google-api-python-client
-protobuf
-googlemaps
-python-dotenv
 streamlit
-folium
 pandas
-requests
-streamlit-folium
+numpy
