@@ -60,7 +60,6 @@ default_tipos = {
     "Área Média (m²)": [60, 80, 100],
 }
 
-# Utiliza experimental_data_editor se disponível, senão utiliza um fallback com st.dataframe
 try:
     df_tipos = st.experimental_data_editor(
         pd.DataFrame(default_tipos),
@@ -69,8 +68,8 @@ try:
     )
 except AttributeError:
     st.warning(
-        "A funcionalidade de edição direta de dados não está disponível na sua versão do Streamlit."
-        " Atualize o Streamlit para usar este recurso."
+        "A funcionalidade de edição direta de dados não está disponível "
+        "na versão do Streamlit que você está usando."
     )
     df_tipos = pd.DataFrame(default_tipos)
     st.dataframe(df_tipos, use_container_width=True)
@@ -83,16 +82,16 @@ area_media_unidade = area_construida / num_unidades
 vagas_por_unidade = num_vagas / num_unidades if num_unidades else np.nan
 elevadores_por_unidade = num_elevadores / num_unidades if num_unidades else np.nan
 
-# Cálculo da composição de áreas por tipologia
-df_tipos["% Área Total"] = (df_tipos["Qtd Unidades"] * df_tipos["Área Média (m²)"]) / area_construida * 100
+# Composição de áreas por tipologia
+df_tipos["% Área Total"] = (
+    df_tipos["Qtd Unidades"] * df_tipos["Área Média (m²)"]
+) / area_construida * 100
 
 # Indicadores financeiros
 custo_construcao_total = area_construida * custo_construcao_m2
 investimento_total = custo_terreno + custo_construcao_total
 receita_estimadas = num_unidades * preco_venda_medio
 lucro_estimado = receita_estimadas - investimento_total
-
-# Outras métricas
 custo_por_unidade = investimento_total / num_unidades
 
 # Exibição dos indicadores
@@ -108,3 +107,38 @@ st.dataframe(
         "% Área Total": "{:.1f}%"
     }),
     use_container_width=True
+)
+
+st.markdown("---")
+st.subheader("Análise Financeira")
+st.write(f"**Custo total de construção:** R$ {custo_construcao_total:,.2f}")
+st.write(f"**Investimento total (terreno + construção):** R$ {investimento_total:,.2f}")
+st.write(f"**Receita estimada (venda de unidades):** R$ {receita_estimadas:,.2f}")
+st.write(f"**Lucro estimado:** R$ {lucro_estimado:,.2f}")
+st.write(f"**Custo por unidade:** R$ {custo_por_unidade:,.2f}")
+
+# === 4. Alertas e Recomendações ===
+st.subheader("Alertas e Recomendações")
+
+if vagas_por_unidade < 1:
+    st.warning("Média de vagas inferior a 1 por unidade. Verifique o atendimento mínimo.")
+
+if elevadores_por_unidade < 0.05:
+    st.warning("Poucos elevadores para o número de unidades; considere aumentar.")
+
+if garagem_tipo == "Subsolo" and area_construida > 10000:
+    st.info("Subsolo em grandes áreas pode elevar custos de escavação.")
+
+if lucro_estimado < 0:
+    st.error("Projeto apresenta prejuízo. Avalie custos ou preços de venda.")
+elif lucro_estimado / investimento_total < 0.1:
+    st.warning("Margem de lucro baixa. Considere revisar custos e preços.")
+
+st.info(
+    "Recomenda-se análise detalhada dos custos de construção "
+    "e pesquisa de mercado atualizada para confirmar preços de venda."
+)
+
+# === 5. Futuras Evoluções ===
+st.markdown("---")
+st.caption("Feito com ❤️ por sua equipe de engenharia de software.")
