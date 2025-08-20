@@ -59,11 +59,21 @@ default_tipos = {
     "Qtd Unidades": [20, 20, 10],
     "Área Média (m²)": [60, 80, 100],
 }
-df_tipos = st.experimental_data_editor(
-    pd.DataFrame(default_tipos),
-    num_rows="dynamic",
-    use_container_width=True
-)
+
+# Utiliza experimental_data_editor se disponível, senão utiliza um fallback com st.dataframe
+try:
+    df_tipos = st.experimental_data_editor(
+        pd.DataFrame(default_tipos),
+        num_rows="dynamic",
+        use_container_width=True
+    )
+except AttributeError:
+    st.warning(
+        "A funcionalidade de edição direta de dados não está disponível na sua versão do Streamlit."
+        " Atualize o Streamlit para usar este recurso."
+    )
+    df_tipos = pd.DataFrame(default_tipos)
+    st.dataframe(df_tipos, use_container_width=True)
 
 # === 3. Cálculos dos Indicadores e Viabilidade ===
 st.subheader("Indicadores de Viabilidade")
@@ -98,39 +108,3 @@ st.dataframe(
         "% Área Total": "{:.1f}%"
     }),
     use_container_width=True
-)
-
-st.markdown("---")
-st.subheader("Análise Financeira")
-st.write(f"**Custo total de construção:** R$ {custo_construcao_total:,.2f}")
-st.write(f"**Investimento total (terreno + construção):** R$ {investimento_total:,.2f}")
-st.write(f"**Receita estimada (venda de unidades):** R$ {receita_estimadas:,.2f}")
-st.write(f"**Lucro estimado:** R$ {lucro_estimado:,.2f}")
-st.write(f"**Custo por unidade:** R$ {custo_por_unidade:,.2f}")
-
-# === 4. Alertas e Recomendações ===
-st.subheader("Alertas e Recomendações")
-
-# Alertas estruturais
-if vagas_por_unidade < 1:
-    st.warning("Média de vagas inferior a 1 por unidade. Verifique se o atendimento mínimo está sendo cumprido.")
-
-if elevadores_por_unidade < 0.05:
-    st.warning("Número baixo de elevadores em relação às unidades. Considere aumentar para melhorar a circulação.")
-
-if garagem_tipo == "Subsolo" and area_construida > 10000:
-    st.info("Em empreendimentos com grande área construída, garagens em subsolo podem elevar os custos de escavação.")
-
-# Alertas financeiros
-if lucro_estimado < 0:
-    st.error("O projeto apresenta prejuízo estimado. Avalie a redução de custos ou ajuste os valores de venda.")
-elif lucro_estimado / investimento_total < 0.1:
-    st.warning("A margem de lucro está baixa. Considere revisar os custos e o preço de venda.")
-
-# Recomendações adicionais
-st.info("Recomenda-se análise detalhada dos custos de construção e uma pesquisa de mercado atualizada para confirmar os valores de venda.")
-
-# === 5. Possível Exportação do Relatório (Futuro) ===
-st.markdown("---")
-st.caption("Feito com ❤️ por sua equipe de engenharia de software.")
-
